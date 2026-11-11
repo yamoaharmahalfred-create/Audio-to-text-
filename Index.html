@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Audio to Text | Private Transcription</title>
+  <meta name="description" content="Transcribe audio files privately in your browser. No uploads, no accounts.">
+  
+  <!-- Simple favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
+
+  <script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
+
+    window.transcribeAudio = async function () {
+      const fileInput = document.getElementById('audioFile');
+      const status = document.getElementById('status');
+      const progress = document.getElementById('progress');
+      const progressBar = document.getElementById('progressBar');
+      const resultBox = document.getElementById('result');
+      const transcriptArea = document.getElementById('transcript');
+      const modelSelect = document.getElementById('model');
+      const btn = document.getElementById('transcribeBtn');
+
+      if (!fileInput.files[0]) {
+        alert('Please select an audio file first');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      btn.disabled = true;
+      btn.textContent = 'Working...';
+      status.textContent = 'Loading speech model... (first time may take 1–2 minutes)';
+      progress.style.display = 'block';
+      progressBar.style.width = '15%';
+      resultBox.style.display = 'none';
+
+      try {
+        const modelName = modelSelect.value;
+        const transcriber = await pipeline(
+          'automatic-speech-recognition',
+          modelName,
+          { dtype: 'q8' }
+        );
+
+        progressBar.style.width = '35%';
+        status.textContent = 'Model loaded. Now transcribing your audio... This can take several minutes for long files.';
+
+        const result = await transcriber(file, {
+          chunk_length_s: 30,
+          stride_length_s: 5,
+          return_timestamps: false
+        });
+
+        progressBar.style.width = '100%';
+        status.textContent = '✅ Transcription complete!';
+
+        transcriptArea.value = (result.text || '').trim();
+        resultBox.style.display = 'block';
+
+      } catch (error) {
+        console.error(error);
+        status.textContent = '❌ Error: ' + error.message;
+        alert('Transcription failed.\n\nTry the "Tiny" model or a shorter file.\n\nError: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Start Transcription';
+      }
+    };
+
+    window.copyText = function () {
+      const text = document.getElementById('transcript');
+      text.select();
+      document.execCommand('copy');
+      document.getElementById('status').textContent = 'Copied to clipboard!';
+    };
+
+    window.downloadText = function () {
+      const text = document.getElementById('transcript').value;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcript.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 20px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #94a3b8;
+      font-size: 1.05rem;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.2);
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #cbd5e1;
+    }
+    select, input[type="file"] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      margin-bottom: 18px;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background: #2563eb;
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .secondary {
+      background: #334155;
+      margin-top: 12px;
+    }
+    .secondary:hover {
+      background: #475569;
+    }
+    #progress {
+      display: none;
+      height: 8px;
+      background: #334155;
+      border-radius: 4px;
+      margin: 20px 0 12px;
+      overflow: hidden;
+    }
+    #progressBar {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    #status {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      min-height: 28px;
+    }
+    #result {
+      display: none;
+    }
+    textarea {
+      width: 100%;
+      height: 340px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px;
+      color: #e2e8f0;
+      font-size: 1rem;
+      line-height: 1.65;
+      resize: vertical;
+    }
+    .note {
+      font-size: 0.88rem;
+      color: #64748b;
+      margin-top: 28px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .privacy {
+      display: inline-block;
+      background: #064e3b;
+      color: #6ee7b7;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Local Audio → Text</h1>
+      <p class="subtitle">Private transcription in your browser</p>
+      <div class="privacy">🔒 Your audio never leaves your device</div>
+    </header>
+
+    <div class="card">
+      <label>Choose Model</label>
+      <select id="model">
+        <option value="Xenova/whisper-tiny.en">Tiny (English) — Fastest (recommended for long files)</option>
+        <option value="Xenova/whisper-base.en">Base (English) — Better accuracy</option>
+        <option value="Xenova/whisper-tiny">Tiny (Multilingual)</option>
+        <option value="Xenova/whisper-base">Base (Multilingual)</option>
+      </select>
+
+      <label>Select Audio File</label>
+      <input type="file" id="audioFile" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.webm">
+
+      <button id="transcribeBtn" onclick="transcribeAudio()">Start Transcription</button>
+
+      <div id="progress">
+        <div id="progressBar"></div>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div class="card" id="result">
+      <label>Transcript</label>
+      <textarea id="transcript" readonly placeholder="Your transcript will appear here..."></textarea>
+      <button class="secondary" onclick="copyText()">Copy Text</button>
+      <button class="secondary" onclick="downloadText()">Download as .txt</button>
+    </div>
+
+    <p class="note">
+      First use downloads the speech model (one-time only).<br>
+      Long interviews may take 15–40 minutes — keep this tab open.<br>
+      Works best in Chrome or Edge.
+    </p>
+  </div>
+</body>
+</html>
